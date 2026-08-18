@@ -1,5 +1,5 @@
 vim.api.nvim_create_user_command("Possess", function(opts)
-	require("possess").connect(opts.fargs[1], opts.fargs[2])
+	require("possess").connect(opts.fargs)
 end, { nargs = "+" })
 
 vim.api.nvim_create_user_command("PossessUnmount", function(opts)
