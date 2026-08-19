@@ -103,6 +103,30 @@ function M.connect(args)
 	error("usage: Possess user=<u> host=<h> alias=<a>  |  Possess <alias>  |  Possess <user@host>")
 end
 
+function M.new_window()
+	vim.cmd("split")
+	local buf = vim.api.nvim_create_buf(true, false)
+	vim.api.nvim_buf_set_name(buf, "test")
+	vim.api.nvim_win_set_buf(0, vim.fn.bufnr("test"))
+	print("hello")
+end
+
+function M.init_buf(name, fn)
+	local existing = vim.fn.bufnr(name)
+	if existing ~= -1 then
+		vim.api.nvim_win_set_buf(0, existing)
+		return
+	end
+
+	local buf = vim.api.nvim_create_buf(true, false)
+	vim.api.nvim_buf_set_name(buf, name)
+	vim.api.nvim_win_set_buf(0, vim.fn.bufnr(name))
+
+	if fn then
+		fn(buf)
+	end
+end
+
 function M.unmount(alias)
 	alias = alias or ""
 	local mount_path = vim.fn.expand("~/possess/" .. alias)
