@@ -7,10 +7,19 @@ vim.api.nvim_create_user_command("PossessNew", function()
 end, {})
 
 vim.api.nvim_create_user_command("PossessBuf", function(opts)
-	require("possess").init_buf(opts.fargs[1], function()
-		print("hello")
-	end)
-end, { nargs = 1 })
+	local name = opts.fargs[1]
+	local def = require("possess.buffers")[name]
+	if def then
+		require("possess").init_buf(def)
+	else
+		require("possess").init_buf({ name = name })
+	end
+end, {
+	nargs = 1,
+	complete = function()
+		return vim.tbl_keys(require("possess.buffers"))
+	end,
+})
 
 require("possess.buffers")
 
