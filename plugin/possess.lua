@@ -26,3 +26,20 @@ require("possess.buffers")
 vim.api.nvim_create_user_command("PossessUnmount", function(opts)
 	require("possess").unmount(opts.fargs[1])
 end, { nargs = 1 })
+
+vim.api.nvim_create_user_command("PossessTerm", function(opts)
+	require("possess").ssh_term(opts.fargs[1])
+end, {
+	nargs = "?",
+	complete = function()
+		local path = vim.fn.expand("~/possess")
+		local entries = vim.fn.readdir(path)
+		local aliases = {}
+		for _, entry in ipairs(entries) do
+			if vim.fn.isdirectory(path .. "/" .. entry) == 1 then
+				aliases[#aliases + 1] = entry
+			end
+		end
+		return aliases
+	end,
+})

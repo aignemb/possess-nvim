@@ -36,4 +36,20 @@ function M.init_terminal()
 	possess.init_buf(M.terminal)
 end
 
+M.ssh = {
+	name = "ssh",
+	window = "float",
+	fn = function(buf)
+		local env = possess.find_env()
+		if not env or not env.alias then
+			error("possess: no possess.env found above current buffer")
+		end
+		vim.bo[buf].buftype = "terminal"
+		vim.api.nvim_open_term(buf, { cmd = { "ssh", env.alias } })
+	end,
+}
+function M.init_ssh()
+	possess.init_buf(M.ssh)
+end
+
 return M

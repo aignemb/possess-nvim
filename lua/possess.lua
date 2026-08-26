@@ -43,8 +43,64 @@ local function add_ssh_host(name, hostname, username, port)
 	end
 end
 
-local function do_mount(connection, alias)
-	local mount_path = vim.fn.expand("~/possess/" .. alias)
+local function serialize_env(tbl, indent)
+	indent = indent or ""
+	local lines = { indent .. "return {" }
+	for k, v in pairs(tbl) do
+		local key = type(k) == "number" and "[" .. k .. "]" or "[\"" .. k .. "\"]"
+		if type(v) == "table" then
+			lines[#lines + 1] = indent .. "  " .. key .. " = " .. serialize_env(v, indent .. "  ")
+		elseif type(v) == "string" then
+			lines[#lines + 1] = string.format("%s  %s = %q,", indent, key, v)
+		elseif type(v) == "number" or type(v) == "boolean" then
+			lines[#lines + 1] = indent .. "  " .. key .. " = " .. tostring(v) .. ","
+		end
+	end
+	lines[#lines + 1] = indent .. "}"
+	return table.concat(lines, "\n")
+end
+
+local function write_env(alias_root, env)
+	local path = alias_root .. "/possess.env"
+	local f = io.open(path, "w")
+	if f then
+		f:write(serialize_env(env) .. "\n")
+		f:close()
+	end
+end
+
+local function parse_env(path)
+	local ok, result = pcall(dofile, path)
+	if ok and type(result) == "table" then
+		return result
+	end
+end
+
+function M.find_env(start_path)
+	start_path = start_path or vim.api.nvim_buf_get_name(0)
+	if start_path == "" then
+		start_path = vim.fn.getcwd()
+	end
+	start_path = vim.fs.normalize(start_path)
+
+	local dir = vim.fn.isdirectory(start_path) == 1 and start_path or vim.fs.dirname(start_path)
+	while dir and dir ~= "" and dir ~= "/" do
+		local env_path = dir .. "/possess.env"
+		if vim.fn.filereadable(env_path) == 1 then
+			local env = parse_env(env_path)
+			if env then
+				env.env_dir = dir
+				return env
+			end
+		end
+		dir = vim.fs.dirname(dir)
+	end
+end
+
+local function do_mount(connection, alias, env)
+	local alias_root = vim.fn.expand("~/possess/" .. alias)
+	local mount_path = alias_root .. "/home"
+	vim.fn.mkdir(alias_root, "p")
 	vim.fn.mkdir(mount_path, "p")
 
 	vim.fn.system({ "mountpoint", "-q", mount_path })
@@ -62,6 +118,12 @@ local function do_mount(connection, alias)
 		end
 		vim.notify("mounted " .. connection .. " -> " .. mount_path, vim.log.levels.INFO)
 	end
+
+	env = env or {}
+	env.alias = alias
+	env.mount_path = mount_path
+	env.created_at = os.date("%Y-%m-%dT%H:%M:%S")
+	write_env(alias_root, env)
 
 	vim.fn.chdir(mount_path)
 	vim.cmd("Oil " .. vim.fn.fnameescape(mount_path))
@@ -89,7 +151,11 @@ function M.connect(args)
 	if host and alias then
 		local connection = user and (user .. "@" .. host) or host
 		add_ssh_host(alias, host, user, port)
-		do_mount(connection, alias)
+		do_mount(connection, alias, {
+			host = host,
+			user = user,
+			port = port,
+		})
 		return
 	end
 
@@ -197,7 +263,8 @@ end
 
 function M.unmount(alias)
 	alias = alias or ""
-	local mount_path = vim.fn.expand("~/possess/" .. alias)
+	local alias_root = vim.fn.expand("~/possess/" .. alias)
+	local mount_path = alias_root .. "/home"
 
 	vim.fn.system({ "mountpoint", "-q", mount_path })
 	if vim.v.shell_error ~= 0 then
@@ -213,8 +280,24 @@ function M.unmount(alias)
 	vim.notify("unmounted " .. mount_path, vim.log.levels.INFO)
 
 	if vim.startswith(vim.fn.getcwd(), mount_path) then
-		vim.fn.chdir(vim.fn.expand("~"))
+		vim.fn.chdir(alias_root)
 	end
+end
+
+function M.ssh_term(alias)
+	alias = alias or (M.find_env() or {}).alias
+	if not alias then
+		error("possess: no alias found (not inside a possess tree?)")
+	end
+
+	M.init_buf({
+		name = "possess-ssh://" .. alias,
+		window = "float",
+		fn = function(buf)
+			vim.bo[buf].buftype = "terminal"
+			vim.api.nvim_open_term(buf, { cmd = { "ssh", alias } })
+		end,
+	})
 end
 
 return M
