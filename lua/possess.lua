@@ -257,7 +257,7 @@ function M.init_buf(def)
 	show_in_window(def.window, buf)
 
 	if def.fn then
-		def.fn(buf)
+		def.fn(buf, def)
 	end
 end
 
@@ -282,22 +282,6 @@ function M.unmount(alias)
 	if vim.startswith(vim.fn.getcwd(), mount_path) then
 		vim.fn.chdir(alias_root)
 	end
-end
-
-function M.ssh_term(alias)
-	alias = alias or (M.find_env() or {}).alias
-	if not alias then
-		error("possess: no alias found (not inside a possess tree?)")
-	end
-
-	M.init_buf({
-		name = "possess-ssh://" .. alias,
-		window = "float",
-		fn = function(buf)
-			vim.bo[buf].buftype = "terminal"
-			vim.api.nvim_open_term(buf, { cmd = { "ssh", alias } })
-		end,
-	})
 end
 
 return M
